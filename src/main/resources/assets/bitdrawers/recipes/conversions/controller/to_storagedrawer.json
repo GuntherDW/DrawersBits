@@ -1,0 +1,17 @@
+{
+  "conditions": [
+    {
+      "type": "bitdrawers:feature_enabled",
+      "feature": "BitController"
+    }
+  ],
+  "type": "forge:ore_shapeless",
+  "ingredients": [
+    {
+      "item": "bitdrawers:bitcontroller"
+    }
+  ],
+  "result": {
+    "item": "storagedrawers:controller"
+  }
+}

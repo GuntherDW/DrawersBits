@@ -3,6 +3,7 @@ package mods.belgabor.bitdrawers;
 /**
  * Created by Belgabor on 02.06.2016.
  */
+
 import com.jaquadro.minecraft.storagedrawers.network.CountUpdateMessage;
 import mod.chiselsandbits.api.ChiselsAndBitsAddon;
 import mod.chiselsandbits.api.IChiselAndBitsAPI;
@@ -11,32 +12,37 @@ import mods.belgabor.bitdrawers.config.ConfigManager;
 import mods.belgabor.bitdrawers.core.BDLogger;
 import mods.belgabor.bitdrawers.core.BlockRegistry;
 import mods.belgabor.bitdrawers.core.CommonProxy;
-import mods.belgabor.bitdrawers.core.RecipeRegistry;
-import mods.belgabor.bitdrawers.gui.GuiScreenStartup;
-import net.minecraft.client.gui.GuiMainMenu;
-import net.minecraftforge.client.event.GuiOpenEvent;
+import net.minecraft.block.Block;
+import net.minecraft.item.Item;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.*;
+import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
-import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
+import net.minecraftforge.fml.common.ModContainer;
+import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.io.File;
 
-@Mod(modid = BitDrawers.MODID, version = BitDrawers.VERSION, name = BitDrawers.MODNAME, dependencies = "required-after:chiselsandbits@[11.6,);required-after:storagedrawers@[1.11.2-"+BitDrawers.SD_VERSION+",);required-after:chameleon")
+@Mod(modid = BitDrawers.MODID,
+        version = BitDrawers.VERSION,
+        name = BitDrawers.MODNAME,
+        dependencies = "required-after:chiselsandbits@[14.0,);required-after:storagedrawers@[1.12-"+BitDrawers.SD_VERSION+",);required-after:chameleon"
+)
 @ChiselsAndBitsAddon
 public class BitDrawers implements IChiselsAndBitsAddon
 {
     public static final String MODNAME = "Drawers & Bits";
     public static final String MODID = "bitdrawers";
     public static final String VERSION = "0.41";
-    public static final String SD_VERSION = "4.2.0";
-    public static final int[] SD_VERSIONS = {4, 2, 0};
+    public static final String SD_VERSION = "5.3.5";
+    public static final int[] SD_VERSIONS = {5, 3, 5};
     
     @SidedProxy(
             clientSide = "mods.belgabor.bitdrawers.client.ClientProxy",
@@ -55,7 +61,6 @@ public class BitDrawers implements IChiselsAndBitsAddon
     public static String detectedSdVersion = "";
     
     public static BlockRegistry blocks = new BlockRegistry();
-    public static RecipeRegistry recipes = new RecipeRegistry();
 
     @EventHandler
     public void preInit(FMLPreInitializationEvent event)
@@ -63,8 +68,6 @@ public class BitDrawers implements IChiselsAndBitsAddon
         BDLogger.logger = event.getModLog();
         config = new ConfigManager(new File(event.getModConfigurationDirectory(), "DrawersBits.cfg"));
         network = NetworkRegistry.INSTANCE.newSimpleChannel(MODID);
-        blocks.init();
-        proxy.initClient();
 
         MinecraftForge.EVENT_BUS.register(this);
         
@@ -103,12 +106,17 @@ public class BitDrawers implements IChiselsAndBitsAddon
             BDLogger.error("Drawers & Bits: Unable to verify StorageDrawers version. This probably isn't going to end well...");
         }
     }
-    
-    @EventHandler
-    public void postInit(FMLPostInitializationEvent event) {
-        recipes.init();
+
+    @SubscribeEvent
+    public void registerBlocks(RegistryEvent.Register<Block> event) {
+        blocks.initBlocks(event.getRegistry());
     }
-    
+
+    @SubscribeEvent
+    public void registerItems(RegistryEvent.Register<Item> event) {
+        blocks.initItems(event.getRegistry());
+    }
+
     /*
     @SubscribeEvent
     @SideOnly( Side.CLIENT )

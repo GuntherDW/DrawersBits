@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "storagedrawers:compdrawers"
+    },
+    {
+      "item": "chiselsandbits:block_bit",
+      "data": 32767
+    }
+  ],
+  "result": {
+    "item": "bitdrawers:bitdrawer"
+  }
+}

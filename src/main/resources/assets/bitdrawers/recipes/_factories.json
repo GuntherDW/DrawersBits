@@ -1,0 +1,5 @@
+{
+  "conditions": {
+    "feature_enabled": "mods.belgabor.bitdrawers.core.recipes.factories.conditions.FeatureEnabled"
+  }
+}

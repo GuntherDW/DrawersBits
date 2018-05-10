@@ -1,0 +1,11 @@
+{
+  "type": "forge:ore_shapeless",
+  "ingredients": [
+    {
+      "item": "bitdrawers:bitdrawer"
+    }
+  ],
+  "result": {
+    "item": "storagedrawers:compdrawers"
+  }
+}

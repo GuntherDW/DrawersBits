@@ -3,7 +3,6 @@ package mods.belgabor.bitdrawers.item;
 import com.jaquadro.minecraft.chameleon.resources.IItemMeshMapper;
 import com.jaquadro.minecraft.chameleon.resources.IItemVariantProvider;
 import com.jaquadro.minecraft.storagedrawers.block.EnumCompDrawer;
-import com.jaquadro.minecraft.storagedrawers.block.tile.TileEntityDrawers;
 import com.mojang.realmsclient.gui.ChatFormatting;
 import mods.belgabor.bitdrawers.BitDrawers;
 import mods.belgabor.bitdrawers.block.tile.TileBitDrawers;
@@ -11,6 +10,7 @@ import mods.belgabor.bitdrawers.config.ConfigManager;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
+import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -19,7 +19,7 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.translation.I18n;
 import net.minecraft.world.World;
-import net.minecraftforge.fml.common.registry.GameData;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.apache.commons.lang3.tuple.Pair;
@@ -56,9 +56,6 @@ public class ItemBitDrawer extends ItemBlock implements IItemMeshMapper, IItemVa
             if (side != EnumFacing.UP && side != EnumFacing.DOWN)
                 tile.setDirection(side.ordinal());
 
-            int initCapacity = BitDrawers.config.bitdrawerStorage;
-            tile.setDrawerCapacity(initCapacity);
-
             if (stack.hasTagCompound() && stack.getTagCompound().hasKey("tile"))
                 tile.readFromPortableNBT(stack.getTagCompound().getCompoundTag("tile"));
 
@@ -70,22 +67,22 @@ public class ItemBitDrawer extends ItemBlock implements IItemMeshMapper, IItemVa
 
     @Override
     @SideOnly(Side.CLIENT)
-    public void addInformation (@Nullable ItemStack itemStack, @Nullable EntityPlayer player, @Nullable List<String> list, boolean par4) {
-        if (list == null)
+    public void addInformation (ItemStack stack, @Nullable World worldIn, List<String> tooltip, ITooltipFlag flagIn) {
+        if (tooltip == null)
             return;
         
         ConfigManager config = BitDrawers.config;
 
-        list.add(I18n.translateToLocalFormatted("storageDrawers.drawers.description", config.bitdrawerStorage));
+        tooltip.add(I18n.translateToLocalFormatted("bitDrawers.container.bitDrawers", config.bitdrawerStorage));
 
-        if ((itemStack != null) && itemStack.hasTagCompound() && itemStack.getTagCompound().hasKey("tile")) {
-            list.add(ChatFormatting.YELLOW + I18n.translateToLocal("storageDrawers.drawers.sealed"));
+        if ((stack != null) && stack.hasTagCompound() && stack.getTagCompound().hasKey("tile")) {
+            tooltip.add(ChatFormatting.YELLOW + I18n.translateToLocal("storagedrawers.drawers.sealed"));
         }
     }
 
     @Override
     public List<ResourceLocation> getItemVariants () {
-        ResourceLocation location = GameData.getItemRegistry().getNameForObject(this);
+        ResourceLocation location = ForgeRegistries.ITEMS.getKey(this);
         List<ResourceLocation> variants = new ArrayList<ResourceLocation>();
 
         if (location != null)

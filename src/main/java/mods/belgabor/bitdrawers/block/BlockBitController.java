@@ -3,7 +3,6 @@ package mods.belgabor.bitdrawers.block;
 import com.jaquadro.minecraft.storagedrawers.block.BlockController;
 import com.jaquadro.minecraft.storagedrawers.config.ConfigManager;
 import com.jaquadro.minecraft.storagedrawers.config.PlayerConfigSetting;
-import com.jaquadro.minecraft.storagedrawers.security.SecurityManager;
 import mod.chiselsandbits.api.IBitBag;
 import mod.chiselsandbits.api.ItemType;
 import mods.belgabor.bitdrawers.BitDrawers;
@@ -27,13 +26,14 @@ import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * Created by Belgabor on 24.07.2016.
  */
 public class BlockBitController extends BlockController /*implements IBlockDestroyHandler*/ {
-    public BlockBitController(String name) {
-        super(name);
+    public BlockBitController(String registryName, String blockName) {
+        super(registryName, blockName);
     }
     
     @Override
@@ -79,7 +79,7 @@ public class BlockBitController extends BlockController /*implements IBlockDestr
             return;
         }
         //RayTraceResult ray = Minecraft.getMinecraft().objectMouseOver;
-        RayTraceResult ray = net.minecraftforge.common.ForgeHooks.rayTraceEyes(player, ((EntityPlayerMP) player).interactionManager.getBlockReachDistance() + 1);
+        RayTraceResult ray = net.minecraftforge.common.ForgeHooks.rayTraceEyes(player, player.getEntityAttribute(EntityPlayer.REACH_DISTANCE).getAttributeValue()+ 1);
         EnumFacing side = ray.sideHit;
 
         if (BitDrawers.config.debugTrace)

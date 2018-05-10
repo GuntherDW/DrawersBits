@@ -50,14 +50,14 @@ public class GuiScreenStartup extends GuiScreen
         drawDefaultBackground();
 
         int heightLoc = 90;
-        drawCenteredString( fontRendererObj, TextFormatting.YELLOW + "Drawers & Bits", width / 2, height / 2 - 110, 0xFFFFFF );
+        drawCenteredString( fontRenderer, TextFormatting.YELLOW + "Drawers & Bits", width / 2, height / 2 - 110, 0xFFFFFF );
 
         for ( final String s : lines )
         {
-            final List<String> info = fontRendererObj.listFormattedStringToWidth( s, width - 40 );
+            final List<String> info = fontRenderer.listFormattedStringToWidth( s, width - 40 );
             for ( final String infoCut : info )
             {
-                drawCenteredString( fontRendererObj, infoCut, width / 2, height / 2 - heightLoc, 0xFFFFFF );
+                drawCenteredString( fontRenderer, infoCut, width / 2, height / 2 - heightLoc, 0xFFFFFF );
                 heightLoc = heightLoc - 12;
             }
         }

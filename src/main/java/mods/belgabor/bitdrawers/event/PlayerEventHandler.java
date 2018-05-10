@@ -22,7 +22,7 @@ public class PlayerEventHandler {
     {
         if (BitDrawers.config.debugTrace) {
             Vec3d vec = event.getHitVec();
-            BDLogger.info("Left Click %s %s %f %f %f", resultToString(event.getUseItem()), resultToString(event.getUseBlock()), vec.xCoord, vec.yCoord, vec.zCoord);
+            BDLogger.info("Left Click %s %s %f %f %f", resultToString(event.getUseItem()), resultToString(event.getUseBlock()), vec.x, vec.y, vec.z);
         }
         if ( event.getEntityPlayer() != null && event.getUseItem() != Event.Result.DENY )
         {

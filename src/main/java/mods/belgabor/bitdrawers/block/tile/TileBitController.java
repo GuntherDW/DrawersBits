@@ -1,33 +1,42 @@
 package mods.belgabor.bitdrawers.block.tile;
 
-import com.jaquadro.minecraft.storagedrawers.StorageDrawers;
-import com.jaquadro.minecraft.storagedrawers.api.security.ISecurityProvider;
 import com.jaquadro.minecraft.storagedrawers.api.storage.IDrawer;
 import com.jaquadro.minecraft.storagedrawers.api.storage.IDrawerGroup;
 import com.jaquadro.minecraft.storagedrawers.api.storage.attribute.IProtectable;
-import com.jaquadro.minecraft.storagedrawers.api.storage.attribute.IVoidable;
 import com.jaquadro.minecraft.storagedrawers.block.tile.TileEntityController;
+import com.jaquadro.minecraft.storagedrawers.block.tile.TileEntityDrawers;
+import com.jaquadro.minecraft.storagedrawers.capabilities.DrawerItemRepository;
 import com.jaquadro.minecraft.storagedrawers.security.SecurityManager;
-import com.jaquadro.minecraft.storagedrawers.util.ItemMetaListRegistry;
+import com.jaquadro.minecraft.storagedrawers.util.ItemMetaCollectionRegistry;
 import com.mojang.authlib.GameProfile;
-import mod.chiselsandbits.api.*;
-import mod.chiselsandbits.core.api.BitAccess;
+import mod.chiselsandbits.api.APIExceptions;
+import mod.chiselsandbits.api.IBitAccess;
+import mod.chiselsandbits.api.IBitBag;
+import mod.chiselsandbits.api.IBitBrush;
+import mod.chiselsandbits.api.ItemType;
 import mod.chiselsandbits.core.api.BitBrush;
 import mod.chiselsandbits.helpers.ModUtil;
 import mods.belgabor.bitdrawers.BitDrawers;
 import mods.belgabor.bitdrawers.core.BDLogger;
 import mods.belgabor.bitdrawers.core.BitHelper;
+import mods.belgabor.bitdrawers.core.BlockRegistry;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.world.ILockableContainer;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nonnull;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Created by Belgabor on 24.07.2016.
@@ -35,6 +44,7 @@ import java.util.*;
 public class TileBitController extends TileEntityController /*implements IProtectable*/ {
     protected Map<Integer, List<SlotRecord>> drawerBitLookup = new HashMap<>();
     private String securityKey;
+    private ItemMetaCollectionRegistry<SlotRecord> drawerPrimaryLookup = new ItemMetaCollectionRegistry<>();
     
     @Override
     public int interactPutItemsIntoInventory (EntityPlayer player) {
@@ -145,7 +155,7 @@ public class TileBitController extends TileEntityController /*implements IProtec
             }
             
             data.stream().forEachOrdered(bitData -> {
-                for (Integer slot : this.enumerateDrawersForInsertion(bitData.stack, true)) {
+                /* for (Integer slot : this.enumerateDrawersForInsertion(bitData.stack, true)) {
                     IDrawerGroup group = this.getGroupForDrawerSlot(slot);
                     if (!(group instanceof IProtectable) || SecurityManager.hasAccess(profile, (IProtectable) group)) {
                         IDrawer drawer = this.getDrawer(slot);
@@ -156,7 +166,8 @@ public class TileBitController extends TileEntityController /*implements IProtec
 
                         bitData.drawers.add(drawer);
                         if (bitData.canStore >= 0) {
-                            if (drawer instanceof IVoidable && ((IVoidable) drawer).isVoid()) {
+                            // TODO: Hacky change?
+                            if (drawer instanceof TileEntityDrawers && ((TileEntityDrawers) drawer).getDrawerAttributes().isVoid()) {
                                 bitData.canStore = -1;
                             } else {
                                 bitData.canStore += drawer.getRemainingCapacity();
@@ -164,10 +175,19 @@ public class TileBitController extends TileEntityController /*implements IProtec
                         }
 
                     }
-                }
+                } */
+                int remainder = new ProtectedItemRepository(this, profile).insertItem(stack, false).getCount();
+                // int added = stack.getCount() - remainder;
+
+                stack.setCount(remainder);
+
+                // int remainder = new ProtectedItemRepository(this, profile).insertItem(stack, false).getCount();
+                // int added = stack.getCount() - remainder;
                 
                 bitData.calc();
+
             });
+
             
             OptionalInt test = data.stream().mapToInt(x -> x.canStoreItems).min();
             final int maxItems = Math.min(test.isPresent()?test.getAsInt():0, stack.getCount());
@@ -182,11 +202,13 @@ public class TileBitController extends TileEntityController /*implements IProtec
                 bitData.toStore(maxItems);
                 bitData.drawers.stream().forEachOrdered(drawer -> {
                     if (bitData.toStore > 0) {
-                        int stored = insertItemsIntoDrawer(drawer, bitData.toStore);
-                        if (drawer instanceof IVoidable && ((IVoidable) drawer).isVoid()) {
+                        int itemsLeft = drawer.adjustStoredItemCount(bitData.toStore);
+
+                        // TODO: Hacky change?
+                        if (drawer instanceof TileEntityDrawers && ((TileEntityDrawers) drawer).getDrawerAttributes().isVoid()) {
                             bitData.toStore = 0;
                         } else {
-                            bitData.stored(stored);
+                            bitData.stored(itemsLeft);
                         }
                     }
                 });
@@ -201,6 +223,14 @@ public class TileBitController extends TileEntityController /*implements IProtec
         } else {
             return -1;
         }
+    }
+
+    @Override
+    public void validate () {
+        super.validate();
+
+        if (!getWorld().isUpdateScheduled(getPos(), BlockRegistry.bitController))
+            getWorld().scheduleBlockUpdate(getPos(), BlockRegistry.bitController, 1, 0);
     }
 
     @Override
@@ -229,7 +259,7 @@ public class TileBitController extends TileEntityController /*implements IProtec
                 continue;
 
             int drawerSlot = record.slot;
-            if (!group.isDrawerEnabled(drawerSlot))
+            if (!group.getDrawer(drawerSlot).isEnabled())
                 continue;
 
             IDrawer drawer = group.getDrawer(drawerSlot);
@@ -417,26 +447,6 @@ public class TileBitController extends TileEntityController /*implements IProtec
         }
         return stack;
     }
-    
-    @Override
-    public void readFromNBT (NBTTagCompound tag) {
-        super.readFromNBT(tag);
-
-        securityKey = null;
-        if (tag.hasKey("Sec"))
-            securityKey = tag.getString("Sec");
-
-    }
-
-    @Override
-    public NBTTagCompound writeToNBT (NBTTagCompound tag) {
-        super.writeToNBT(tag);
-
-        if (securityKey != null)
-            tag.setString("Sec", securityKey);
-        
-        return tag;
-    }
 
 
     protected static class BitCollectorData {
@@ -485,6 +495,152 @@ public class TileBitController extends TileEntityController /*implements IProtec
             return list;
         }
     }
-    
 
+
+    /**
+     * Copied from TileEntityController
+     */
+    private class ItemRepository extends DrawerItemRepository {
+        public ItemRepository (IDrawerGroup group) {
+            super(group);
+        }
+
+        @Nonnull
+        @Override
+        public ItemStack insertItem (@Nonnull ItemStack stack, boolean simulate, Predicate<ItemStack> predicate) {
+            Collection<SlotRecord> primaryRecords = drawerPrimaryLookup.getEntries(stack.getItem(), stack.getMetadata());
+            Set<Integer> checkedSlots = (simulate) ? new HashSet<>() : null;
+
+            int amount = stack.getCount();
+            if (primaryRecords != null) {
+                for (SlotRecord record : primaryRecords) {
+                    IDrawerGroup candidateGroup = getGroupForSlotRecord(record);
+                    if (candidateGroup == null)
+                        continue;
+
+                    IDrawer drawer = candidateGroup.getDrawer(record.slot);
+                    if (drawer.isEmpty())
+                        continue;
+                    if (!testPredicateInsert(drawer, stack, predicate))
+                        continue;
+                    if (!hasAccess(candidateGroup, drawer))
+                        continue;
+
+                    amount = (simulate)
+                            ? Math.max(amount - drawer.getAcceptingRemainingCapacity(), 0)
+                            : drawer.adjustStoredItemCount(amount);
+
+                    if (amount == 0)
+                        return ItemStack.EMPTY;
+
+                    if (simulate)
+                        checkedSlots.add(record.index);
+                }
+            }
+
+            for (int slot : drawerSlots) {
+                IDrawer drawer = getDrawer(slot);
+                if (!drawer.isEnabled())
+                    continue;
+                if (!testPredicateInsert(drawer, stack, predicate))
+                    continue;
+                if (!hasAccess(getGroupForDrawerSlot(slot), drawer))
+                    continue;
+                if (simulate && checkedSlots.contains(slot))
+                    continue;
+
+                boolean empty = drawer.isEmpty();
+                if (empty && !simulate)
+                    drawer = drawer.setStoredItem(stack);
+
+                amount = (simulate)
+                        ? Math.max(amount - (empty ? drawer.getAcceptingMaxCapacity(stack) : drawer.getAcceptingRemainingCapacity()), 0)
+                        : drawer.adjustStoredItemCount(amount);
+
+                if (amount == 0)
+                    return ItemStack.EMPTY;
+            }
+
+            return stackResult(stack, amount);
+        }
+
+        @Nonnull
+        @Override
+        public ItemStack extractItem (@Nonnull ItemStack stack, int amount, boolean simulate, Predicate<ItemStack> predicate) {
+            Collection<SlotRecord> primaryRecords = drawerPrimaryLookup.getEntries(stack.getItem(), stack.getMetadata());
+            Set<Integer> checkedSlots = (simulate) ? new HashSet<>() : null;
+
+            int remaining = amount;
+            if (primaryRecords != null) {
+                for (SlotRecord record : primaryRecords) {
+                    IDrawerGroup candidateGroup = getGroupForSlotRecord(record);
+                    if (candidateGroup == null)
+                        continue;
+
+                    IDrawer drawer = candidateGroup.getDrawer(record.slot);
+                    if (!drawer.isEnabled())
+                        continue;
+                    if (!testPredicateExtract(drawer, stack, predicate))
+                        continue;
+                    if (!hasAccess(candidateGroup, drawer))
+                        continue;
+
+                    remaining = (simulate)
+                            ? Math.max(remaining - drawer.getStoredItemCount(), 0)
+                            : drawer.adjustStoredItemCount(-remaining);
+
+                    if (remaining == 0)
+                        return stackResult(stack, amount);
+
+                    if (simulate)
+                        checkedSlots.add(record.index);
+                }
+            }
+
+            for (int slot : drawerSlots) {
+                IDrawer drawer = getDrawer(slot);
+                if (!drawer.isEnabled())
+                    continue;
+                if (!testPredicateExtract(drawer, stack, predicate))
+                    continue;
+                if (simulate && checkedSlots.contains(slot))
+                    continue;
+
+                remaining = (simulate)
+                        ? Math.max(remaining - drawer.getStoredItemCount(), 0)
+                        : drawer.adjustStoredItemCount(-remaining);
+
+                if (remaining == 0)
+                    return stackResult(stack, amount);
+            }
+
+            return (amount == remaining)
+                    ? ItemStack.EMPTY
+                    : stackResult(stack, amount - remaining);
+        }
+
+        protected boolean hasAccess (IDrawerGroup group, IDrawer drawer) {
+            return true;
+        }
+    }
+
+    private class ProtectedItemRepository extends ItemRepository
+    {
+        private GameProfile profile;
+
+        public ProtectedItemRepository (IDrawerGroup group, GameProfile profile) {
+            super(group);
+            this.profile = profile;
+        }
+
+        @Override
+        protected boolean hasAccess (IDrawerGroup group, IDrawer drawer) {
+            if (drawer.isEmpty())
+                return false;
+            if (group instanceof IProtectable)
+                return SecurityManager.hasAccess(profile, (IProtectable)group);
+
+            return true;
+        }
+    }
 }

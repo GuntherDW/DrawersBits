@@ -1,6 +1,6 @@
 package mods.belgabor.bitdrawers.block;
 
-import com.jaquadro.minecraft.storagedrawers.api.pack.BlockType;
+import com.jaquadro.minecraft.storagedrawers.api.storage.BlockType;
 import com.jaquadro.minecraft.storagedrawers.api.storage.IDrawer;
 import com.jaquadro.minecraft.storagedrawers.api.storage.INetworked;
 import com.jaquadro.minecraft.storagedrawers.block.BlockDrawers;
@@ -32,9 +32,12 @@ import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.SoundEvents;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.*;
+import net.minecraft.util.EnumFacing;
+import net.minecraft.util.EnumHand;
+import net.minecraft.util.NonNullList;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.SoundCategory;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.world.IBlockAccess;
@@ -47,7 +50,6 @@ import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -126,8 +128,8 @@ public class BlockBitDrawers extends BlockDrawers implements INetworked
     }
 
     @Override
-    public void getSubBlocks (Item item, CreativeTabs creativeTabs, NonNullList<ItemStack> list) {
-        list.add(new ItemStack(item, 1, 0));
+    public void getSubBlocks (CreativeTabs creativeTabs, NonNullList<ItemStack> list) {
+        list.add(new ItemStack(this, 1, 0));
     }
 
     @Override
@@ -157,9 +159,9 @@ public class BlockBitDrawers extends BlockDrawers implements INetworked
             facing = EnumFacing.NORTH;
 
         EnumCompDrawer slots = EnumCompDrawer.OPEN1;
-        if (tile.isDrawerEnabled(1))
+        if (tile.getGroup().getDrawer(1).isEnabled())
             slots = EnumCompDrawer.OPEN2;
-        if (tile.isDrawerEnabled(2))
+        if (tile.getGroup().getDrawer(2).isEnabled())
             slots = EnumCompDrawer.OPEN3;
 
         return state.withProperty(FACING, facing).withProperty(SLOTS, slots);
@@ -170,13 +172,13 @@ public class BlockBitDrawers extends BlockDrawers implements INetworked
         TileEntityDrawers tile = getTileEntity(world, pos);
 
         if (tile != null && !tile.isSealed()) {
-            for (int i = 0; i < tile.getUpgradeSlotCount(); i++) {
-                ItemStack stack = tile.getUpgrade(i);
+            for (int i = 0; i < tile.upgrades().getSlotCount(); i++) {
+                ItemStack stack = tile.upgrades().getUpgrade(i);
                 if (!stack.isEmpty())
                     spawnAsEntity(world, pos, stack);
             }
 
-            if (!tile.isVending())
+            if (!tile.upgrades().hasVendingUpgrade())
                 DrawerInventoryHelper.dropInventoryItems(world, pos, tile);
         }
 
@@ -198,9 +200,9 @@ public class BlockBitDrawers extends BlockDrawers implements INetworked
         
         EnumFacing side = rayResult.sideHit;
         // adjust hitVec for drawers
-        float hitX = (float)(rayResult.hitVec.xCoord - pos.getX());
-        float hitY = (float)(rayResult.hitVec.yCoord - pos.getY());
-        float hitZ = (float)(rayResult.hitVec.zCoord - pos.getZ());
+        float hitX = (float)(rayResult.hitVec.x - pos.getX());
+        float hitY = (float)(rayResult.hitVec.y - pos.getY());
+        float hitZ = (float)(rayResult.hitVec.z - pos.getZ());
         
         TileEntityDrawers tileDrawers = getTileEntitySafe(world, pos);
         if (tileDrawers.getDirection() != side.ordinal())
@@ -222,7 +224,7 @@ public class BlockBitDrawers extends BlockDrawers implements INetworked
         }
         
         int slot = getDrawerSlot(getDrawerCount(world.getBlockState(pos)), side.ordinal(), hitX, hitY, hitZ);
-        IDrawer drawer = tileDrawers.getDrawer(slot);
+        IDrawer drawer = tileDrawers.getGroup().getDrawer(slot);
 
         ItemStack item/* = ItemStack.EMPTY*/;
 
@@ -233,7 +235,7 @@ public class BlockBitDrawers extends BlockDrawers implements INetworked
         IItemHandler handler = held.isEmpty()?null:held.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
         if (handler instanceof IBitBag) {
             IBitBag bag = (IBitBag) handler;
-            drawer = tileDrawers.getDrawer(1);
+            drawer = tileDrawers.getGroup().getDrawer(1);
             if (drawer.getStoredItemPrototype().isEmpty())
                 return;
             int retrieved = 0;

@@ -1,16 +1,18 @@
 package mods.belgabor.bitdrawers.core;
 
 import mcp.MethodsReturnNonnullByDefault;
-import mod.chiselsandbits.api.*;
-import mod.chiselsandbits.chiseledblock.ItemBlockChiseled;
+import mod.chiselsandbits.api.APIExceptions;
+import mod.chiselsandbits.api.IBitAccess;
+import mod.chiselsandbits.api.IBitBrush;
+import mod.chiselsandbits.api.IBitVisitor;
+import mod.chiselsandbits.api.ItemType;
 import mod.chiselsandbits.helpers.ModUtil;
 import mods.belgabor.bitdrawers.BitDrawers;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.init.Items;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
@@ -32,7 +34,7 @@ public class BitHelper {
                 if (blockState != null) {
                     try {
                         ItemStack bitStack = BitDrawers.cnb_api.getBitItem(blockState);
-                        if (bitStack.getItem() != null) {
+                        if (bitStack.getItem() != Items.AIR) {
                             return bitStack;
                         }
                     } catch (APIExceptions.InvalidBitItem e) {}
@@ -53,7 +55,7 @@ public class BitHelper {
                 if (blockState != null) {
                     Block block = blockState.getBlock();
                     ItemStack newStack =  new ItemStack(block, 1, block.damageDropped(blockState));
-                    if (newStack.getItem() != null)
+                    if (newStack.getItem() != Items.AIR)
                         return newStack;
                 }
             }

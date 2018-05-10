@@ -2,102 +2,60 @@ package mods.belgabor.bitdrawers.block.tile;
 
 import com.jaquadro.minecraft.storagedrawers.StorageDrawers;
 import com.jaquadro.minecraft.storagedrawers.api.storage.IDrawer;
-import com.jaquadro.minecraft.storagedrawers.api.storage.attribute.LockAttribute;
+import com.jaquadro.minecraft.storagedrawers.api.storage.IDrawerAttributes;
+import com.jaquadro.minecraft.storagedrawers.api.storage.IDrawerGroup;
 import com.jaquadro.minecraft.storagedrawers.block.tile.TileEntityDrawers;
-import com.jaquadro.minecraft.storagedrawers.inventory.ContainerDrawersComp;
 import com.jaquadro.minecraft.storagedrawers.network.CountUpdateMessage;
-import com.jaquadro.minecraft.storagedrawers.storage.BaseDrawerData;
-import com.jaquadro.minecraft.storagedrawers.storage.ICentralInventory;
-import mcp.MethodsReturnNonnullByDefault;
-import mod.chiselsandbits.api.*;
+import mod.chiselsandbits.api.APIExceptions;
+import mod.chiselsandbits.api.IBitAccess;
+import mod.chiselsandbits.api.IBitBag;
+import mod.chiselsandbits.api.IBitBrush;
+import mod.chiselsandbits.api.ItemType;
 import mods.belgabor.bitdrawers.BitDrawers;
+import mods.belgabor.bitdrawers.block.tile.tiledata.BitsDrawerGroup;
 import mods.belgabor.bitdrawers.core.BDLogger;
 import mods.belgabor.bitdrawers.core.BitHelper;
-import mods.belgabor.bitdrawers.storage.BitDrawerData;
-import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.inventory.Container;
-import net.minecraft.inventory.InventoryCrafting;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.EnumFacing;
+import net.minecraft.world.World;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nonnull;
-import javax.annotation.ParametersAreNonnullByDefault;
+import javax.annotation.Nullable;
 
 /**
  * Created by Belgabor on 02.06.2016.
  * Based on TileEntityDrawersComp by jaquadro
  */
-public class TileBitDrawers extends TileEntityDrawers
-{
-    private static InventoryLookup lookup1 = new InventoryLookup(1, 1);
-    private static InventoryLookup lookup2 = new InventoryLookup(2, 2);
-    private static InventoryLookup lookup3 = new InventoryLookup(3, 3);
+public class TileBitDrawers extends TileEntityDrawers {
+    @CapabilityInject(IDrawerAttributes.class)
+    static Capability<IDrawerAttributes> DRAWER_ATTRIBUTES_CAPABILITY = null;
 
-    private ICentralInventory centralInventory;
+    private GroupData groupData;
 
-    private int pooledCount;
-    private int lookupSizeResult;
+    private int capacity = 0;
 
-    private ItemStack[] protoStack;
-    private int[] convRate;
+    public TileBitDrawers() {
+        groupData = new GroupData(3);
+        groupData.setCapabilityProvider(this);
 
-    public TileBitDrawers () {
-        super(3);
-
-        protoStack = new ItemStack[getDrawerCount()];
-        for (int i = 0; i < protoStack.length; i++)
-            protoStack[i] = ItemStack.EMPTY;
-        convRate = new int[getDrawerCount()];
-    }
-
-    protected ICentralInventory getCentralInventory () {
-        if (centralInventory == null)
-            centralInventory = new BitCentralInventory();
-        return centralInventory;
-    }
-
-    public int getStoredItemRemainder (int slot) {
-        int count = centralInventory.getStoredItemCount(slot);
-        if (slot > 0 && convRate[slot] > 0)
-            count -= centralInventory.getStoredItemCount(slot - 1) * (convRate[slot - 1] / convRate[slot]);
-
-        return count;
+        injectPortableData(groupData);
     }
 
     @Override
-    protected IDrawer createDrawer (int slot) {
-        return new BitDrawerData(getCentralInventory(), slot);
+    public IDrawerGroup getGroup() {
+        return groupData;
     }
 
-    @Override
-    @MethodsReturnNonnullByDefault
-    @ParametersAreNonnullByDefault
-    public Container createContainer (InventoryPlayer playerInventory, EntityPlayer playerIn) {
-        return new ContainerDrawersComp(playerInventory, this);
-    }
-
-    @Override
-    @MethodsReturnNonnullByDefault
-    public String getGuiID () {
-        return StorageDrawers.MOD_ID + ":compDrawers";
-    }
-
-
-    @Override
-    public boolean isDrawerEnabled (int slot) {
-        if (slot > 0 && convRate[slot] == 0)
-            return false;
-
-        return super.isDrawerEnabled(slot);
-    }
-    
     @Override
     public int interactPutItemsIntoSlot (int slot, EntityPlayer player) {
         if (BitDrawers.config.debugTrace)
@@ -106,19 +64,21 @@ public class TileBitDrawers extends TileEntityDrawers
         if (!stack.isEmpty()) {
             if (stack.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null)) {
                 return interactPutBagIntoSlot(slot, stack);
-            } else if (slot == 2){
+            } else if (slot == 2) {
                 ItemType type = BitDrawers.cnb_api.getItemType(stack);
                 if (type == ItemType.POSITIVE_DESIGN || type == ItemType.NEGATIVE_DESIGN || type == ItemType.MIRROR_DESIGN) {
                     return interactSetCustomSlot(stack);
                 }
             }
         }
+
         return super.interactPutItemsIntoSlot(slot, player);
     }
-    
-    public int interactPutBagIntoSlot(int slot, @Nonnull ItemStack stack) {
+
+
+    public int interactPutBagIntoSlot (int slot, @Nonnull ItemStack stack) {
         if (BitDrawers.config.debugTrace)
-            BDLogger.info("TileBitDrawers:interactPutBagIntoSlot %d %s", slot, stack.isEmpty()?"EMPTY":stack.getDisplayName());
+            BDLogger.info("TileBitDrawers:interactPutBagIntoSlot %d %s", slot, stack.isEmpty() ? "EMPTY" : stack.getDisplayName());
         int added = 0;
         IItemHandler handler = stack.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
         if (handler instanceof IBitBag) {
@@ -147,9 +107,9 @@ public class TileBitDrawers extends TileEntityDrawers
         }
         return added;
     }
-    
-    public int interactSetCustomSlot(@Nonnull ItemStack stack) {
-        ItemStack bit = getDrawer(1).getStoredItemPrototype();
+
+    public int interactSetCustomSlot (@Nonnull ItemStack stack) {
+        ItemStack bit = groupData.getDrawer(1).getStoredItemPrototype();
         if (bit.isEmpty())
             return 0;
 
@@ -161,13 +121,13 @@ public class TileBitDrawers extends TileEntityDrawers
         }
         ItemStack item = BitHelper.getMonochrome(stack, brush);
         if (item.isEmpty())
-            populateSlot(2, ItemStack.EMPTY, 0);
+            groupData.populateRawSlot(2, ItemStack.EMPTY, 0);
         else
-            populateSlot(2, item, item.getCount());
-        
+            groupData.populateRawSlot(2, item, item.getCount());
+
         return 1;
     }
-    
+
     @Override
     public int putItemsIntoSlot (int slot, @Nonnull ItemStack stack, int count) {
         if (BitDrawers.config.debugTrace)
@@ -176,34 +136,21 @@ public class TileBitDrawers extends TileEntityDrawers
         if (!stack.isEmpty()) {
             if (BitDrawers.cnb_api.getItemType(stack) == ItemType.CHISLED_BLOCK) {
                 return putChiseledBlockIntoDrawer(stack, count);
-            } else if (convRate != null && convRate[0] == 0) {
-                populateSlots(stack);
-
-                for (int i = 0; i < getDrawerCount(); i++) {
-                    if (BaseDrawerData.areItemsEqual(protoStack[i], stack))
-                        added = super.putItemsIntoSlot(i, stack, count);
-                }
-
-                for (int i = 0; i < getDrawerCount(); i++) {
-                    IDrawer drawer = getDrawer(i);
-                    if (drawer instanceof BitDrawerData)
-                        ((BitDrawerData) drawer).refresh();
-                }
-
             }
         }
 
         return added + super.putItemsIntoSlot(slot, stack, count);
     }
-    
+
     public int putChiseledBlockIntoDrawer (@Nonnull ItemStack stack, int count) {
         if (BitDrawers.config.debugTrace)
             BDLogger.info("TileBitDrawers:putChiseledBlockIntoDrawer %s %d", stack.isEmpty()?"EMPTY":stack.getDisplayName(), count);
         count = Math.min(count, stack.getCount());
-        IDrawer drawer = getDrawer(1);
+        IDrawer drawer = groupData.getDrawer(1);
         IBitAccess access = BitDrawers.cnb_api.createBitItem(stack);
-        if (convRate == null || convRate[0] == 0 || access == null)
-            return 0;
+        // TODO: Check for edge cases?
+        /* if (convRate == null || convRate[0] == 0 || access == null)
+            return 0; */
         BitHelper.BitCounter counter = new BitHelper.BitCounter();
         access.visitBits(counter);
         IBitBrush stored = null;
@@ -219,9 +166,9 @@ public class TileBitDrawers extends TileEntityDrawers
                 BDLogger.info("TileBitDrawers:putChiseledBlockIntoDrawer Not Matched %d", counter.counts.size());
             return 0;
         }
-        
+
         int bitSize = counter.counts.get(stored.getStateID());
-        int canStore = isVoid()?count:drawer.getRemainingCapacity() / bitSize;
+        int canStore = getDrawerAttributes().isVoid() ? count : drawer.getRemainingCapacity() / bitSize;
         int toStore = Math.min(canStore, count);
         int toStoreBits = toStore * bitSize;
         ItemStack store = drawer.getStoredItemPrototype().copy();
@@ -236,417 +183,104 @@ public class TileBitDrawers extends TileEntityDrawers
     }
 
     @Override
-    public void readFromPortableNBT (NBTTagCompound tag) {
-        pooledCount = 0;
-
-        for (int i = 0; i < getDrawerCount(); i++) {
-            protoStack[i] = ItemStack.EMPTY;
-            convRate[i] = 0;
-        }
-
-        super.readFromPortableNBT(tag);
-
-        pooledCount = tag.getInteger("Count");
-
-        if (tag.hasKey("Conv0"))
-            convRate[0] = tag.getInteger("Conv0");
-        if (tag.hasKey("Conv1"))
-            convRate[1] = tag.getInteger("Conv1");
-        if (tag.hasKey("Conv2"))
-            convRate[2] = tag.getInteger("Conv2");
-
-        for (int i = 0; i < getDrawerCount(); i++) {
-            IDrawer drawer = getDrawer(i);
-            if (drawer instanceof BitDrawerData)
-                ((BitDrawerData) drawer).refresh();
-        }
-
-        if (getWorld() != null && !getWorld().isRemote) {
-            IBlockState state = getWorld().getBlockState(getPos());
-            getWorld().notifyBlockUpdate(getPos(), state, state, 3);
-        }
+    protected void onAttributeChanged() {
+        groupData.syncAttributes();
     }
 
-    @Override
-    public NBTTagCompound writeToPortableNBT (NBTTagCompound tag) {
-        super.writeToPortableNBT(tag);
-
-        tag.setInteger("Count", pooledCount);
-
-        if (convRate[0] > 0)
-            tag.setInteger("Conv0", convRate[0]);
-        if (convRate[1] > 0)
-            tag.setInteger("Conv1", convRate[1]);
-        if (convRate[2] > 0)
-            tag.setInteger("Conv2", convRate[2]);
-        
-        return tag;
-    }
-
-    @Override
-    public void clientUpdateCount (int slot, int count) {
-        if (count != pooledCount) {
-            pooledCount = count;
-            IBlockState state = getWorld().getBlockState(getPos());
-            getWorld().notifyBlockUpdate(getPos(), state, state, 3);
-        }
-    }
-
-    @Override
-    public String getName () {
-        return "bitDrawers.container.bitDrawers";
-    }
-
-    private void populateSlots (ItemStack stack) {
-        if (BitDrawers.cnb_api.getItemType(stack) == ItemType.CHISLED_BIT) {
-            ItemStack fullStack = BitHelper.getBlock(stack);
-            if (!fullStack.isEmpty()) {
-                populateSlot(0, fullStack, 4096);
-                populateSlot(1, stack, 1);
-            }
-        } else {
-            ItemStack bitStack = BitHelper.getBit(stack);
-            if (!bitStack.isEmpty()) {
-                populateSlot(0, stack, 4096);
-                populateSlot(1, bitStack, 1);
-            }
-        }
-
-    }
-    
-    private void populateSlot (int slot, @Nonnull ItemStack stack, int conversion) {
-        convRate[slot] = conversion;
-        protoStack[slot] = stack.copy();
-        markBlockForUpdate();
-    }
-    
-    private class BitCentralInventory implements ICentralInventory
-    {
-        @Override
-        @Nonnull
-        public ItemStack getStoredItemPrototype (int slot) {
-            return protoStack[slot];
+    private class GroupData extends BitsDrawerGroup {
+        public GroupData(int slotCount) {
+            super(slotCount);
         }
 
         @Override
-        public int getDefaultMaxCapacity (int slot) {
-            if (!isDrawerEnabled(slot))
-                return 0;
-
-            if (TileBitDrawers.this.isUnlimited() || TileBitDrawers.this.isVending())
-                return Integer.MAX_VALUE;
-
-            return 64 * getBaseStackCapacity();
+        protected World getWorld() {
+            return TileBitDrawers.this.getWorld();
         }
-        
+
         @Override
-        public IDrawer setStoredItem (int slot, @Nonnull ItemStack itemPrototype, int amount) {
-            boolean itemValid = !itemPrototype.isEmpty();
-            if (BitDrawers.config.debugTrace)
-                BDLogger.info("setStoredItem %d %s %d", slot, itemPrototype.isEmpty()?"EMPTY":itemPrototype.getDisplayName(), amount);
-            if (itemValid && convRate != null && convRate[0] == 0) {
-                populateSlots(itemPrototype);
-                for (int i = 0; i < getDrawerCount(); i++) {
-                    if (BaseDrawerData.areItemsEqual(protoStack[i], itemPrototype))
-                        pooledCount = (pooledCount % convRate[i]) + convRate[i] * amount;
-                }
+        protected void log(String message) {
+            if (!getWorld().isRemote && StorageDrawers.config.cache.debugTrace)
+                StorageDrawers.log.info(message);
+        }
 
-                for (int i = 0; i < getDrawerCount(); i++) {
-                    if (i == slot)
-                        continue;
+        @Override
+        protected int getStackCapacity() {
+            return upgrades().getStorageMultiplier() * getEffectiveDrawerCapacity();
+        }
 
-                    IDrawer drawer = getDrawer(i);
-                    if (drawer instanceof BitDrawerData)
-                        ((BitDrawerData) drawer).refresh();
-                }
-
-                /*
-                if (getWorld() != null && !getWorld().isRemote) {
-                    IBlockState state = getWorld().getBlockState(getPos());
-                    getWorld().notifyBlockUpdate(getPos(), state, state, 3);
-                }
-                */
+        @Override
+        protected void onItemChanged() {
+            if (getWorld() != null && !getWorld().isRemote) {
+                markDirty();
                 markBlockForUpdate();
             }
-            else if (!itemValid && isDrawerEnabled(slot)) {
-                setStoredItemCount(slot, 0);
-                markBlockForUpdate();
-            }
-            return getDrawer(slot);
         }
 
         @Override
-        public int getStoredItemCount (int slot) {
-            //System.out.println(String.format("getStoredItemCount %d", slot));
-            if (convRate == null || convRate[slot] == 0)
-                return 0;
+        protected void onAmountChanged() {
+            if (getWorld() != null && !getWorld().isRemote) {
+                IMessage message = new CountUpdateMessage(getPos(), 0, getPooledCount());
+                NetworkRegistry.TargetPoint targetPoint = new NetworkRegistry.TargetPoint(getWorld().provider.getDimension(), getPos().getX(), getPos().getY(), getPos().getZ(), 500);
 
-            if (TileBitDrawers.this.isVending())
-                return Integer.MAX_VALUE;
+                StorageDrawers.network.sendToAllAround(message, targetPoint);
 
-            return pooledCount / convRate[slot];
-        }
-
-        @Override
-        public void setStoredItemCount (int slot, int amount) {
-            if (BitDrawers.config.debugTrace)
-                BDLogger.info("BitCentralInventory:setStoredItemCount %d %d", slot, amount);
-            if (convRate == null || convRate[slot] == 0)
-                return;
-
-            if (TileBitDrawers.this.isVending())
-                return;
-
-            int oldCount = pooledCount;
-            pooledCount = (pooledCount % convRate[slot]) + convRate[slot] * amount;
-
-            int poolMax = getMaxCapacity(0) * convRate[0];
-            if (pooledCount > poolMax)
-                pooledCount = poolMax;
-
-            if (pooledCount != oldCount) {
-                if (pooledCount != 0 || TileBitDrawers.this.isItemLocked(LockAttribute.LOCK_POPULATED))
-                    markAmountDirty();
-                else {
-                    clear();
-                    markBlockForUpdate();
-                }
-                if (!getWorld().isRemote && isRedstone()) {
-                    IBlockState state = getWorld().getBlockState(getPos());
-                    getWorld().notifyNeighborsOfStateChange(getPos(), state.getBlock(), false);
-                    getWorld().notifyNeighborsOfStateChange(getPos().down(), state.getBlock(), false);
-                }
+                markDirty();
             }
         }
 
         @Override
-        public int getMaxCapacity (int slot) {
-            if (protoStack[slot].isEmpty() || convRate == null || convRate[slot] == 0)
-                return 0;
+        public boolean hasCapability(@Nonnull Capability<?> capability, @Nullable EnumFacing facing) {
+            return capability == TileBitDrawers.DRAWER_ATTRIBUTES_CAPABILITY
+                    || super.hasCapability(capability, facing);
 
-            if (TileBitDrawers.this.isUnlimited() || TileBitDrawers.this.isVending()) {
-                if (convRate == null || protoStack[slot] == null || convRate[slot] == 0)
-                    return Integer.MAX_VALUE;
-                return Integer.MAX_VALUE / convRate[slot];
-            }
-
-            return protoStack[slot].getItem().getItemStackLimit(protoStack[slot]) * getStackCapacity(slot);
         }
 
+        @Nullable
         @Override
-        public int getMaxCapacity (int slot, @Nonnull ItemStack itemPrototype) {
-            if (itemPrototype.isEmpty() || itemPrototype.getItem() == null)
-                return 0;
+        public <T> T getCapability(@Nonnull Capability<T> capability, @Nullable EnumFacing facing) {
+            if (capability == TileBitDrawers.DRAWER_ATTRIBUTES_CAPABILITY)
+                return (T) TileBitDrawers.this.getDrawerAttributes();
 
-            if (TileBitDrawers.this.isUnlimited() || TileBitDrawers.this.isVending()) {
-                if (convRate == null || protoStack[slot].isEmpty() || convRate[slot] == 0)
-                    return Integer.MAX_VALUE;
-                return Integer.MAX_VALUE / convRate[slot];
-            }
-
-            if (convRate == null || protoStack[0].isEmpty() || convRate[0] == 0)
-                return itemPrototype.getItem().getItemStackLimit(itemPrototype) * getBaseStackCapacity();
-
-            if (BaseDrawerData.areItemsEqual(protoStack[slot], itemPrototype))
-                return getMaxCapacity(slot);
-
-            return 0;
-        }
-
-        @Override
-        public int getRemainingCapacity (int slot) {
-            if (TileBitDrawers.this.isVending())
-                return Integer.MAX_VALUE;
-
-            return getMaxCapacity(slot) - getStoredItemCount(slot);
-        }
-
-        @Override
-        public int getStoredItemStackSize (int slot) {
-            if (protoStack[slot].isEmpty() || convRate == null || convRate[slot] == 0)
-                return 0;
-
-            return protoStack[slot].getItem().getItemStackLimit(protoStack[slot]);
-        }
-
-        @Override
-        public int getItemCapacityForInventoryStack (int slot) {
-            if (isVoid())
-                return Integer.MAX_VALUE;
-            else
-                return getMaxCapacity(slot);
-        }
-
-        @Override
-        public int getConversionRate (int slot) {
-            if (protoStack[slot].isEmpty() || convRate == null || convRate[slot] == 0)
-                return 0;
-
-            return convRate[0] / convRate[slot];
-        }
-
-        @Override
-        public int getStoredItemRemainder (int slot) {
-            return TileBitDrawers.this.getStoredItemRemainder(slot);
-        }
-
-        @Override
-        public boolean isSmallestUnit (int slot) {
-            if (protoStack[slot].isEmpty() || convRate == null || convRate[slot] == 0)
-                return false;
-
-            return convRate[slot] == 1;
-        }
-
-        @Override
-        public boolean isVoidSlot (int slot) {
-            return isVoid();
-        }
-
-        @Override
-        public boolean isShroudedSlot (int slot) {
-            return isShrouded();
-        }
-
-        @Override
-        public boolean setIsSlotShrouded (int slot, boolean state) {
-            setIsShrouded(state);
-            return true;
-        }
-
-        @Override
-        public boolean isSlotShowingQuantity(int i) {
-            return TileBitDrawers.this.isShowingQuantity();
-        }
-        
-        @Override
-        public boolean setIsSlotShowingQuantity(int slot, boolean state) {
-            return TileBitDrawers.this.setIsShowingQuantity(state);
-        }
-
-        @Override
-        public boolean isLocked (int slot, LockAttribute attr) {
-            return TileBitDrawers.this.isItemLocked(attr);
-        }
-
-        @Override
-        public void writeToNBT (int slot, NBTTagCompound tag) {
-            ItemStack protoStack = getStoredItemPrototype(slot);
-            if ((!protoStack.isEmpty()) && protoStack.getItem() != null) {
-                tag.setShort("Item", (short) Item.getIdFromItem(protoStack.getItem()));
-                tag.setShort("Meta", (short) protoStack.getItemDamage());
-
-                if (protoStack.getTagCompound() != null)
-                    tag.setTag("Tags", protoStack.getTagCompound());
-            }
-        }
-
-        @Override
-        public void readFromNBT (int slot, NBTTagCompound tag) {
-            if (tag.hasKey("Item")) {
-                Item item = Item.getItemById(tag.getShort("Item"));
-                if (item != null) {
-                    ItemStack stack = new ItemStack(item, 1);
-                    stack.setItemDamage(tag.getShort("Meta"));
-                    if (tag.hasKey("Tags"))
-                        stack.setTagCompound(tag.getCompoundTag("Tags"));
-
-                    protoStack[slot] = stack;
-                }
-            }
-        }
-
-        private void clear () {
-            for (int i = 0; i < getDrawerCount(); i++) {
-                protoStack[i] = ItemStack.EMPTY;
-                convRate[i] = 0;
-            }
-
-            refresh();
-            TileBitDrawers.this.markDirty();
-        }
-
-        public void refresh () {
-            for (int i = 0; i < getDrawerCount(); i++) {
-                IDrawer drawer = getDrawer(i);
-                if (drawer instanceof BitDrawerData)
-                    ((BitDrawerData) drawer).refresh();
-            }
-        }
-
-        private int getStackCapacity (int slot) {
-            if (convRate == null || convRate[slot] == 0)
-                return 0;
-
-            int slotStacks = getBaseStackCapacity();
-
-            int stackLimit = convRate[0] * slotStacks;
-            return stackLimit / convRate[slot];
-        }
-
-        private int getBaseStackCapacity () {
-            return TileBitDrawers.this.getEffectiveStorageMultiplier() * TileBitDrawers.this.getDrawerCapacity();
-        }
-
-        public void markAmountDirty () {
-            if (getWorld().isRemote)
-                return;
-
-            IMessage message = new CountUpdateMessage(getPos(), 0, pooledCount);
-            NetworkRegistry.TargetPoint targetPoint = new NetworkRegistry.TargetPoint(getWorld().provider.getDimension(), getPos().getX(), getPos().getY(), getPos().getZ(), 500);
-
-            BitDrawers.network.sendToAllAround(message, targetPoint);
-        }
-
-        public void markDirty (int slot) {
-            markBlockForUpdate();
-            /*
-            if (getWorld().isRemote)
-                return;
-
-            IBlockState state = getWorld().getBlockState(getPos());
-            getWorld().notifyBlockUpdate(getPos(), state, state, 3);
-            */
+            return super.getCapability(capability, facing);
         }
     }
 
-    private static class InventoryLookup extends InventoryCrafting
-    {
-        private ItemStack[] stackList;
+    @Override
+    public int getDrawerCapacity() {
+        if (getWorld() == null || getWorld().isRemote)
+            return super.getDrawerCapacity();
 
-        public InventoryLookup (int width, int height) {
-            super(null, width, height);
-            stackList = new ItemStack[width * height];
+        if (capacity == 0) {
+            capacity = BitDrawers.config.bitdrawerStorage;
+
+            if (capacity <= 0)
+                capacity = 1;
         }
 
-        @Override
-        public int getSizeInventory ()
-        {
-            return this.stackList.length;
-        }
+        return capacity;
+    }
 
-        @Override
-        @MethodsReturnNonnullByDefault
-        public ItemStack getStackInSlot (int slot)
-        {
-            return slot >= this.getSizeInventory() ? null : this.stackList[slot];
-        }
+    @Override
+    public boolean dataPacketRequiresRenderUpdate() {
+        return true;
+    }
 
-        @Override
-        @MethodsReturnNonnullByDefault
-        public ItemStack removeStackFromSlot (int slot) {
-            return ItemStack.EMPTY;
-        }
+    @Override
+    @SideOnly(Side.CLIENT)
+    public void clientUpdateCount(final int slot, final int count) {
+        if (!getWorld().isRemote)
+            return;
 
-        @Override
-        @MethodsReturnNonnullByDefault
-        public ItemStack decrStackSize (int slot, int count) {
-            return ItemStack.EMPTY;
-        }
+        Minecraft.getMinecraft().addScheduledTask(() -> TileBitDrawers.this.clientUpdateCountAsync(count));
+    }
 
-        @Override
-        public void setInventorySlotContents (int slot, ItemStack stack) {
-            stackList[slot] = stack;
-        }
+    @SideOnly(Side.CLIENT)
+    private void clientUpdateCountAsync(int count) {
+        groupData.setPooledCount(count);
+    }
+
+    @Override
+    public String getName() {
+        return hasCustomName() ? super.getName() : "bitDrawers.container.bitDrawers";
     }
 }

@@ -1,0 +1,27 @@
+{
+  "type": "forge:ore_shaped",
+  "pattern": [
+    "xxx",
+    "zwz",
+    "xyx"
+  ],
+  "key": {
+    "w": {
+      "ore": "drawerBasic",
+      "type": "forge:ore_dict"
+    },
+    "x": {
+      "item": "minecraft:stone",
+      "data": 0
+    },
+    "y": {
+      "item": "minecraft:piston"
+    },
+    "z": {
+      "item": "chiselsandbits:chisel_iron"
+    }
+  },
+  "result": {
+    "item": "bitdrawers:bitdrawer"
+  }
+}

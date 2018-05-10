@@ -1,0 +1,21 @@
+{
+  "conditions": [
+    {
+      "type": "bitdrawers:feature_enabled",
+      "feature": "BitController"
+    }
+  ],
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "storagedrawers:controller"
+    },
+    {
+      "item": "chiselsandbits:block_bit",
+      "data": 32767
+    }
+  ],
+  "result": {
+    "item": "bitdrawers:bitcontroller"
+  }
+}
